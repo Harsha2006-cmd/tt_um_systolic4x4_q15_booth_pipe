@@ -11,7 +11,7 @@ jobs:
     steps:
 
       # ---------------------------------------------------------
-      # 1. Checkout YOUR project
+      # 1. Checkout your project
       # ---------------------------------------------------------
       - name: Checkout project
         uses: actions/checkout@v4
@@ -29,23 +29,29 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # ---------------------------------------------------------
-      # 3. Check that the tools are available
+      # 3. Verify HDL tools
       # ---------------------------------------------------------
       - name: Check HDL tools
         run: |
-          echo "=== Yosys ==="
+          echo "================================"
+          echo "Yosys"
+          echo "================================"
           yosys --version
 
-          echo "=== Icarus Verilog ==="
+          echo "================================"
+          echo "Icarus Verilog"
+          echo "================================"
           iverilog -V
 
-          echo "=== Cocotb ==="
+          echo "================================"
+          echo "Cocotb"
+          echo "================================"
           cocotb-config --version
           cocotb-config --python-bin
           cocotb-config --libpython
 
       # ---------------------------------------------------------
-      # 4. Checkout Tiny Tapeout support tools
+      # 4. Download Tiny Tapeout support tools
       # ---------------------------------------------------------
       - name: Checkout Tiny Tapeout tools
         uses: actions/checkout@v4
@@ -55,10 +61,12 @@ jobs:
           ref: main
 
       # ---------------------------------------------------------
-      # 5. Use Python 3.11+
+      # 5. Python 3.11
       #
-      # Your previous workflow used Python 3.10.
-      # contourpy==1.3.3 requires Python >= 3.11.
+      # IMPORTANT:
+      # The old workflow used Python 3.10.
+      # Your previous error showed contourpy 1.3.3
+      # requires Python >= 3.11.
       # ---------------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -66,7 +74,7 @@ jobs:
           python-version: '3.11'
 
       # ---------------------------------------------------------
-      # 6. Show Python version
+      # 6. Verify Python
       # ---------------------------------------------------------
       - name: Check Python
         run: |
@@ -74,78 +82,73 @@ jobs:
           python -m pip --version
 
       # ---------------------------------------------------------
-      # 7. Install Tiny Tapeout dependencies
+      # 7. Install Tiny Tapeout requirements
       # ---------------------------------------------------------
-      - name: Install Tiny Tapeout Python requirements
+      - name: Install Tiny Tapeout requirements
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r tt/requirements.txt
 
       # ---------------------------------------------------------
-      # 8. Create Tiny Tapeout user configuration
+      # 8. Generate/check Tiny Tapeout configuration
       # ---------------------------------------------------------
-      - name: Create Tiny Tapeout config
+      - name: Create Tiny Tapeout user config
         run: |
           ./tt/tt_tool.py --create-user-config
 
       # ---------------------------------------------------------
-      # 9. Check project files
+      # 9. Display project structure
       # ---------------------------------------------------------
       - name: Check project structure
         run: |
-          echo "=== Repository ==="
-          ls -la
+          echo "=============================="
+          echo "SRC FILES"
+          echo "=============================="
+          find src -maxdepth 1 -type f -print | sort
 
-          echo "=== src ==="
-          ls -la src
+          echo "=============================="
+          echo "TEST FILES"
+          echo "=============================="
+          find test -maxdepth 2 -type f -print | sort
 
-          echo "=== test ==="
-          if [ -d test ]; then
-            ls -la test
-          else
-            echo "No test directory found"
-          fi
+          echo "=============================="
+          echo "INFO.YAML"
+          echo "=============================="
+          cat info.yaml
 
       # ---------------------------------------------------------
-      # 10. Run the project test
-      #
-      # This requires your test/Makefile to define the
-      # correct PROJECT_SOURCES and test target.
+      # 10. Run the actual cocotb/Verilog test
       # ---------------------------------------------------------
       - name: Run Verilog test
+        working-directory: test
         run: |
-          if [ -f test/Makefile ]; then
-            cd test
-            make clean || true
-            make
-          else
-            echo "ERROR: test/Makefile does not exist."
-            exit 1
-          fi
+          make clean || true
+          make
 
       # ---------------------------------------------------------
-      # 11. Upload VCD waveform if generated
+      # 11. Upload VCD/FST waveform
       # ---------------------------------------------------------
-      - name: Upload VCD
+      - name: Upload simulation waveforms
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-vcd
+          name: simulation-waveforms
           path: |
             test/*.vcd
-            src/*.vcd
+            test/*.fst
+            test/*.gtkw
           if-no-files-found: warn
 
       # ---------------------------------------------------------
-      # 12. Upload simulation results
+      # 12. Upload test results/logs
       # ---------------------------------------------------------
-      - name: Upload test results
+      - name: Upload simulation results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: simulation-results
           path: |
             test/results.xml
             test/*.log
-            src/results.xml
+            test/sim_build/
           if-no-files-found: warn
