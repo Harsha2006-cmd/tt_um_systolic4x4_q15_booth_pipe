@@ -3,8 +3,6 @@
 project:
   wokwi_id:    0        # If using wokwi, set this to your project's ID
 
-# Tiny Tapeout project information
-project:
   title:       "4x4 Q15 Systolic Matrix Multiplier (Pipelined Booth)"  # Project title
   author:      "H S Harsha"        # Your name
   description: "Byte-serial 4x4 signed Q15/INT16 matrix multiplier using a 16-PE systolic array with pipelined radix-4 Booth multipliers"
@@ -17,7 +15,7 @@ project:
   tiles: "1x1"
 
   # Must start with tt_um_ and be unique (include your github username)
-  top_module: "tt_um_YOURUSERNAME_systolic4x4_q15_booth_pipe"
+  top_module: "tt_um_Harsha2006-cmd_systolic4x4_q15_booth_pipe"
 
   # Must be in ./src -- and ALSO listed in test/Makefile's PROJECT_SOURCES
   source_files:
@@ -32,9 +30,6 @@ project:
   # Pinout -- shown on the datasheet/website. Leave unused pins blank,
   # do not add/remove any pins.
   pinout:
-    # Inputs -- ui_in[7:0] is a single 8-bit data bus (byte-serial load
-    # of A/B), not 8 independent signals. Label every bit so the
-    # datasheet doesn't imply 7 of 8 pins are unused.
     ui[0]: "DATA_IN[0] -- data byte bit 0 (load phase)"
     ui[1]: "DATA_IN[1] -- data byte bit 1 (load phase)"
     ui[2]: "DATA_IN[2] -- data byte bit 2 (load phase)"
@@ -44,8 +39,6 @@ project:
     ui[6]: "DATA_IN[6] -- data byte bit 6 (load phase)"
     ui[7]: "DATA_IN[7] -- data byte bit 7 (load phase, MSB)"
 
-    # Outputs -- uo_out[7:0] is likewise a single 8-bit data bus
-    # (byte-serial read of C), all 8 bits used.
     uo[0]: "DATA_OUT[0] -- data byte bit 0 (read phase)"
     uo[1]: "DATA_OUT[1] -- data byte bit 1 (read phase)"
     uo[2]: "DATA_OUT[2] -- data byte bit 2 (read phase)"
@@ -55,8 +48,6 @@ project:
     uo[6]: "DATA_OUT[6] -- data byte bit 6 (read phase)"
     uo[7]: "DATA_OUT[7] -- data byte bit 7 (read phase, MSB)"
 
-    # Bidirectional pins -- these ARE 8 independent single-bit signals
-    # (1 strobe input + 7 status outputs), correctly labeled individually.
     uio[0]: "strobe (1 cycle pulse): consume/advance one byte"
     uio[1]: "busy"
     uio[2]: "done_pulse (1 cycle)"
