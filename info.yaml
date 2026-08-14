@@ -3,72 +3,68 @@
 project:
   wokwi_id:    0        # If using wokwi, set this to your project's ID
 
-# If using an HDL, set wokwi_id as 0 and uncomment and list your source files here. 
-# Source files must be in ./src and you must list each source file separately
-#  source_files:        
-#    - counter.v
-#    - decoder.v
-#  top_module:  "tt_um_example"      # Put the name of your top module here, must start with "tt_um_". Make it unique by including your github username
+# Tiny Tapeout project information
+project:
+  title:       "4x4 Q15 Systolic Matrix Multiplier (Pipelined Booth)"  # Project title
+  author:      "H S Harsha"        # Your name
+  description: "Byte-serial 4x4 signed Q15/INT16 matrix multiplier using a 16-PE systolic array with pipelined radix-4 Booth multipliers"
+  language:    "Verilog"
+  clock_hz:    238000000                # confirm against your actual verified target frequency
 
-# How many tiles your design occupies? A single tile is about 167x108 uM.
-  tiles: "1x1"    # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2 or 8x2
+  # A 16-PE systolic array with pipelined Booth multipliers is NOT small.
+  # Run synthesis first and check utilization before trusting 1x1 -- bump
+  # to 1x2 / 2x2 if density can't be met.
+  tiles: "1x1"
 
-# Keep a track of the submission yaml
-yaml_version: 4
+  # Must start with tt_um_ and be unique (include your github username)
+  top_module: "tt_um_YOURUSERNAME_systolic4x4_q15_booth_pipe"
 
-# As everyone will have access to all designs, try to make it easy for someone new to your design to know what
-# it does and how to operate it. This info will be automatically collected and used to make a datasheet for the chip.
-#
-# Here is a great example: https://github.com/davidsiaw/tt02-davidsiaw-stackcalc/blob/38c5647f83aad2aec675d566aa3d67b98f0aac81/info.yaml
-documentation: 
-  author:       ""      # Your name
-  title:        ""      # Project title
-  language:     "Wokwi" # other examples include Verilog, Amaranth, VHDL, etc
-  description:  ""      # Short description of what your project does
+  # Must be in ./src -- and ALSO listed in test/Makefile's PROJECT_SOURCES
+  source_files:
+    - "tt_um_systolic4x4_q15_booth_pipe.v"
+    - "systolic_array4x4_booth4_pipe.v"
+    - "systolic_array4x4_1_booth4_pipe.v"
+    - "pe_q15_booth4_pipe.v"
+    - "radix4_booth_mult16_pipe.v"
+    - "matrix_loader4x4.v"
+    - "skew_delay.v"
 
-# Longer description of how the project works. You can use standard markdown format.
-  how_it_works: |
-      Explain how your project works
+  # Pinout -- shown on the datasheet/website. Leave unused pins blank,
+  # do not add/remove any pins.
+  pinout:
+    # Inputs -- ui_in[7:0] is a single 8-bit data bus (byte-serial load
+    # of A/B), not 8 independent signals. Label every bit so the
+    # datasheet doesn't imply 7 of 8 pins are unused.
+    ui[0]: "DATA_IN[0] -- data byte bit 0 (load phase)"
+    ui[1]: "DATA_IN[1] -- data byte bit 1 (load phase)"
+    ui[2]: "DATA_IN[2] -- data byte bit 2 (load phase)"
+    ui[3]: "DATA_IN[3] -- data byte bit 3 (load phase)"
+    ui[4]: "DATA_IN[4] -- data byte bit 4 (load phase)"
+    ui[5]: "DATA_IN[5] -- data byte bit 5 (load phase)"
+    ui[6]: "DATA_IN[6] -- data byte bit 6 (load phase)"
+    ui[7]: "DATA_IN[7] -- data byte bit 7 (load phase, MSB)"
 
-# Instructions on how someone could test your project, include things like what buttons do what and how to set the clock if needed
-  how_to_test:  |
-      Explain how to test your project
+    # Outputs -- uo_out[7:0] is likewise a single 8-bit data bus
+    # (byte-serial read of C), all 8 bits used.
+    uo[0]: "DATA_OUT[0] -- data byte bit 0 (read phase)"
+    uo[1]: "DATA_OUT[1] -- data byte bit 1 (read phase)"
+    uo[2]: "DATA_OUT[2] -- data byte bit 2 (read phase)"
+    uo[3]: "DATA_OUT[3] -- data byte bit 3 (read phase)"
+    uo[4]: "DATA_OUT[4] -- data byte bit 4 (read phase)"
+    uo[5]: "DATA_OUT[5] -- data byte bit 5 (read phase)"
+    uo[6]: "DATA_OUT[6] -- data byte bit 6 (read phase)"
+    uo[7]: "DATA_OUT[7] -- data byte bit 7 (read phase, MSB)"
 
-# A description of what the inputs do (e.g. red button, SPI CLK, SPI MOSI, etc).
-  inputs:               
-    - none
-    - none
-    - none
-    - none
-    - none
-    - none
-    - none
-    - none
-# A description of what the outputs do (e.g. status LED, SPI MISO, etc)
-  outputs:
-    - segment a
-    - segment b
-    - segment c
-    - segment d
-    - segment e
-    - segment f
-    - segment g
-    - dot
-# A description of what the bidirectional I/O pins do (e.g. I2C SDA, I2C SCL, etc)
-  bidirectional:
-    - none
-    - none
-    - none
-    - none
-    - none
-    - none
-    - none
-    - none
+    # Bidirectional pins -- these ARE 8 independent single-bit signals
+    # (1 strobe input + 7 status outputs), correctly labeled individually.
+    uio[0]: "strobe (1 cycle pulse): consume/advance one byte"
+    uio[1]: "busy"
+    uio[2]: "done_pulse (1 cycle)"
+    uio[3]: "load_a_phase"
+    uio[4]: "load_b_phase"
+    uio[5]: "compute_phase"
+    uio[6]: "read_phase"
+    uio[7]: "byte_valid (uo_out holds a valid C byte this cycle)"
 
-# The following fields are optional
-  tag:          ""      # comma separated list of tags: test, encryption, experiment, clock, animation, utility, industrial, pwm, fpga, alu, microprocessor, risc, riscv, sensor, signal generator, fft, filter, music, bcd, sound, serial, timer, random number generator, calculator, decoder, counter, puzzle, multiplier, game, oscillator,
-  external_hw:  ""      # Describe any external hardware needed
-  discord:      ""      # Your discord handle, used for communication and automatically assigning tapeout role after a submission
-  doc_link:     ""      # URL to longer form documentation, eg the README.md in your repository
-  clock_hz:     0       # Clock frequency in Hz (if required)
-  picture:      ""      # relative path to a picture in your repository (must be 512kb or less)
+# Do not change!
+yaml_version: 6
