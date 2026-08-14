@@ -60,7 +60,7 @@ jobs:
 
     - name: upload vcd
       if: success() || failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
           name: test-vcd
           path: src/*.vcd
