@@ -68,4 +68,4 @@ project:
     uio[6]: "read_phase"
     uio[7]: "byte_valid (uo_out holds a valid C byte this cycle)"
 # Do not change!
-yaml_version: 6
+yaml_version: 6   
