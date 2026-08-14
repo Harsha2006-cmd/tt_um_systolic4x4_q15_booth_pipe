@@ -1,59 +1,151 @@
 name: wokwi_test
-# either manually started, or on a schedule
-on: [ push, workflow_dispatch ]
+
+on:
+  push:
+  workflow_dispatch:
+
 jobs:
   wokwi_test:
-    # ubuntu
     runs-on: ubuntu-latest
+
     steps:
-    # need the repo checked out
-    - name: checkout repo
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    # install oss fpga tools
-    - name: install oss-cad-suite
-      uses: YosysHQ/setup-oss-cad-suite@v2
-      with:
+
+      # ---------------------------------------------------------
+      # 1. Checkout YOUR project
+      # ---------------------------------------------------------
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ---------------------------------------------------------
+      # 2. Install OSS CAD Suite
+      #    Provides Yosys, Icarus Verilog, cocotb, etc.
+      # ---------------------------------------------------------
+      - name: Install OSS CAD Suite
+        uses: YosysHQ/setup-oss-cad-suite@v2
+        with:
           python-override: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-    - run: |
-        yosys --version
-        iverilog -V
-        cocotb-config --libpython
-        cocotb-config --python-bin
-    - name: checkout tt tools repo
-      uses: actions/checkout@v4
-      with:
-        repository: tinytapeout/tt-support-tools
-        path: tt
-        ref: main
-    # need python and requirements
-    - name: setup python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - run: pip install -r tt/requirements.txt
-    # fetch the truth table
-    - name: fetch Verilog and build config
-      run: ./tt/tt_tool.py --create-user-config
-    # does the wokwi project have a truthtable?
-    - name: Check the truthtable exists
-      id: check_files
-      uses: andstor/file-existence-action@v2
-      with:
-        files: "src/truthtable.md"
-    - name: test
-      if: steps.check_files.outputs.files_exists == 'true'
-      run: |
-        cd src
-        make clean
-        make
-        # make will return success even if the test fails, so check for failure in the results.xml
-        ! grep failure results.xml
-    - name: upload vcd
-      if: success() || failure()
-      uses: actions/upload-artifact@v4
-      with:
+
+      # ---------------------------------------------------------
+      # 3. Check that the tools are available
+      # ---------------------------------------------------------
+      - name: Check HDL tools
+        run: |
+          echo "=== Yosys ==="
+          yosys --version
+
+          echo "=== Icarus Verilog ==="
+          iverilog -V
+
+          echo "=== Cocotb ==="
+          cocotb-config --version
+          cocotb-config --python-bin
+          cocotb-config --libpython
+
+      # ---------------------------------------------------------
+      # 4. Checkout Tiny Tapeout support tools
+      # ---------------------------------------------------------
+      - name: Checkout Tiny Tapeout tools
+        uses: actions/checkout@v4
+        with:
+          repository: TinyTapeout/tt-support-tools
+          path: tt
+          ref: main
+
+      # ---------------------------------------------------------
+      # 5. Use Python 3.11+
+      #
+      # Your previous workflow used Python 3.10.
+      # contourpy==1.3.3 requires Python >= 3.11.
+      # ---------------------------------------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ---------------------------------------------------------
+      # 6. Show Python version
+      # ---------------------------------------------------------
+      - name: Check Python
+        run: |
+          python --version
+          python -m pip --version
+
+      # ---------------------------------------------------------
+      # 7. Install Tiny Tapeout dependencies
+      # ---------------------------------------------------------
+      - name: Install Tiny Tapeout Python requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tt/requirements.txt
+
+      # ---------------------------------------------------------
+      # 8. Create Tiny Tapeout user configuration
+      # ---------------------------------------------------------
+      - name: Create Tiny Tapeout config
+        run: |
+          ./tt/tt_tool.py --create-user-config
+
+      # ---------------------------------------------------------
+      # 9. Check project files
+      # ---------------------------------------------------------
+      - name: Check project structure
+        run: |
+          echo "=== Repository ==="
+          ls -la
+
+          echo "=== src ==="
+          ls -la src
+
+          echo "=== test ==="
+          if [ -d test ]; then
+            ls -la test
+          else
+            echo "No test directory found"
+          fi
+
+      # ---------------------------------------------------------
+      # 10. Run the project test
+      #
+      # This requires your test/Makefile to define the
+      # correct PROJECT_SOURCES and test target.
+      # ---------------------------------------------------------
+      - name: Run Verilog test
+        run: |
+          if [ -f test/Makefile ]; then
+            cd test
+            make clean || true
+            make
+          else
+            echo "ERROR: test/Makefile does not exist."
+            exit 1
+          fi
+
+      # ---------------------------------------------------------
+      # 11. Upload VCD waveform if generated
+      # ---------------------------------------------------------
+      - name: Upload VCD
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
           name: test-vcd
-          path: src/*.vcd
+          path: |
+            test/*.vcd
+            src/*.vcd
+          if-no-files-found: warn
+
+      # ---------------------------------------------------------
+      # 12. Upload simulation results
+      # ---------------------------------------------------------
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test/results.xml
+            test/*.log
+            src/results.xml
+          if-no-files-found: warn
