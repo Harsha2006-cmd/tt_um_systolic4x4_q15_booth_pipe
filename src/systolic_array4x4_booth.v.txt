@@ -1,0 +1,124 @@
+`timescale 1ns / 1ps
+
+//================================================================
+// systolic_array4x4
+//----------------------------------------------------------------
+// Top-level 4x4 Q15 systolic matrix-multiplier.
+//
+// Integrates matrix_loader4x4 (parallel->stream conversion + a
+// correctly edge-aligned acc_clear pulse) with systolic_array4x4_1
+// (the 16-PE grid built from unmodified pe_q15 instances).
+//
+// busy/done are generated locally from the array's own valid_out
+// (PE33's final acc_valid pulse), NOT from a nominal cycle count,
+// per the requirement that done must reflect the true completion
+// of PE33's fourth (final) accumulation.
+//================================================================
+
+module systolic_array4x4_booth
+(
+    input clk,
+    input rst,
+    input start,
+
+    input signed [15:0] a00, a01, a02, a03,
+    input signed [15:0] a10, a11, a12, a13,
+    input signed [15:0] a20, a21, a22, a23,
+    input signed [15:0] a30, a31, a32, a33,
+
+    input signed [15:0] b00, b01, b02, b03,
+    input signed [15:0] b10, b11, b12, b13,
+    input signed [15:0] b20, b21, b22, b23,
+    input signed [15:0] b30, b31, b32, b33,
+
+    output signed [31:0] c00, c01, c02, c03,
+    output signed [31:0] c10, c11, c12, c13,
+    output signed [31:0] c20, c21, c22, c23,
+    output signed [31:0] c30, c31, c32, c33,
+
+    output valid_out,
+    output reg done,
+    output reg busy
+);
+
+    //------------------------------------------------------------
+    // Loader: parallel matrices -> N=4 cycle stream
+    //------------------------------------------------------------
+
+    wire signed [15:0] a_row0, a_row1, a_row2, a_row3;
+    wire signed [15:0] b_col0, b_col1, b_col2, b_col3;
+    wire loader_valid;
+    wire loader_acc_clear;
+
+    matrix_loader4x4 LOADER
+    (
+        .clk(clk), .rst(rst), .start(start),
+
+        .a00(a00),.a01(a01),.a02(a02),.a03(a03),
+        .a10(a10),.a11(a11),.a12(a12),.a13(a13),
+        .a20(a20),.a21(a21),.a22(a22),.a23(a23),
+        .a30(a30),.a31(a31),.a32(a32),.a33(a33),
+
+        .b00(b00),.b01(b01),.b02(b02),.b03(b03),
+        .b10(b10),.b11(b11),.b12(b12),.b13(b13),
+        .b20(b20),.b21(b21),.b22(b22),.b23(b23),
+        .b30(b30),.b31(b31),.b32(b32),.b33(b33),
+
+        .a_row0(a_row0), .a_row1(a_row1), .a_row2(a_row2), .a_row3(a_row3),
+        .b_col0(b_col0), .b_col1(b_col1), .b_col2(b_col2), .b_col3(b_col3),
+
+        .valid(loader_valid),
+        .acc_clear(loader_acc_clear)
+    );
+
+    //------------------------------------------------------------
+    // 4x4 PE grid
+    //------------------------------------------------------------
+
+    systolic_array4x4_1_booth ARRAY
+    (
+        .clk(clk), .rst(rst),
+
+        .valid_in(loader_valid),
+        .acc_clear(loader_acc_clear),
+
+        .a0(a_row0), .a1(a_row1), .a2(a_row2), .a3(a_row3),
+        .b0(b_col0), .b1(b_col1), .b2(b_col2), .b3(b_col3),
+
+        .c00(c00), .c01(c01), .c02(c02), .c03(c03),
+        .c10(c10), .c11(c11), .c12(c12), .c13(c13),
+        .c20(c20), .c21(c21), .c22(c22), .c23(c23),
+        .c30(c30), .c31(c31), .c32(c32), .c33(c33),
+
+        .valid_out(valid_out)
+    );
+
+    //------------------------------------------------------------
+    // busy / done: busy asserts on start, stays high until the
+    // array itself reports valid_out (PE33's final acc_valid).
+    // done pulses for exactly one cycle at that point.
+    //------------------------------------------------------------
+
+    always @(posedge clk or posedge rst)
+    begin
+        if(rst)
+        begin
+            busy <= 1'b0;
+            done <= 1'b0;
+        end
+        else
+        begin
+            done <= 1'b0;
+
+            if(start && !busy)
+                busy <= 1'b1;
+
+            if(valid_out)
+            begin
+                done <= 1'b1;
+                busy <= 1'b0;
+            end
+        end
+    end
+
+endmodule
