@@ -25,11 +25,11 @@ jobs:
         cocotb-config --python-bin
 
     - name: checkout tt tools repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: tinytapeout/tt-support-tools
         path: tt
-        ref: tt05
+        ref: ttsky25b
 
     # need python and requirements
     - name: setup python
