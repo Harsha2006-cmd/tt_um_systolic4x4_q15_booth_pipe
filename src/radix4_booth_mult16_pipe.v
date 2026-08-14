@@ -1,30 +1,23 @@
 `timescale 1ns / 1ps
 
 //================================================================
-// radix4_booth_mult16_pipe
+// radix4_booth_mult16_pipe  (SYNTHESIS-FIXED VERSION)
 //----------------------------------------------------------------
 // Pipelined 16 x 16 signed Radix-4 Modified Booth multiplier.
 // Fully synchronous, 4-cycle valid_in -> valid_out latency, fully
 // pipelined (accepts one new operand pair every cycle).
 //
-// No '*' operator, no DSP. Same Booth decode as the combinational
-// q15_booth_mult, but the 8 partial products are reduced through
-// three registered adder-tree stages instead of one big combinational
-// sum, so the critical path is broken into 4 shallow pipeline stages:
+// CHANGE FROM ORIGINAL: the Booth decode no longer reuses a single
+// shared `grp`/`digit` reg across all 8 groups inside one always
+// block. Each group now has its own uniquely-named 3-bit "group"
+// wire and its own 3-bit signed "digit" wire, computed with plain
+// continuous assignments (no case-based ROM-shaped construct that
+// Yosys's proc pass can mistake for an addressed memory). This is
+// functionally IDENTICAL to the original -- same truth table, same
+// partial products, same reduction tree -- only the RTL coding
+// style changed.
 //
-//   Stage 0 (comb) : Booth-decode b, generate 8 partial products
-//   Stage 1 (reg)  : latch the 8 partial products
-//   Stage 2 (comb->reg) : pairwise-sum 8 -> 4, latch
-//   Stage 3 (comb->reg) : pairwise-sum 4 -> 2, latch
-//   Stage 4 (comb->reg) : final sum 2 -> 1, latch as `result`
-//
-// valid_in shifts through the same 4 registers as valid_out, so
-// result/valid_out for a given input pair appear exactly 4 clocks
-// after that pair was presented (with valid_in=1).
-//
-// Verilog-2001 synthesizable subset: no initial blocks, no latches
-// (always @* fully assigns every case with a default branch),
-// sequential logic only in clocked always blocks.
+// No '*' operator, no DSP.
 //================================================================
 
 module radix4_booth_mult16_pipe
@@ -47,188 +40,68 @@ module radix4_booth_mult16_pipe
     wire signed [33:0] a_ext = {{18{a[15]}}, a};
     wire        [16:0] b_op  = {b, 1'b0};
 
-    reg signed [33:0] pp0, pp1, pp2, pp3, pp4, pp5, pp6, pp7;
+    // Each group gets its own uniquely-named select/digit signal --
+    // no reg is written and re-read multiple times in the same
+    // process, so there is nothing for Yosys to (mis)interpret as
+    // addressed/procedural memory.
+    wire [2:0] grp0 = b_op[2:0];
+    wire [2:0] grp1 = b_op[4:2];
+    wire [2:0] grp2 = b_op[6:4];
+    wire [2:0] grp3 = b_op[8:6];
+    wire [2:0] grp4 = b_op[10:8];
+    wire [2:0] grp5 = b_op[12:10];
+    wire [2:0] grp6 = b_op[14:12];
+    wire [2:0] grp7 = b_op[16:14];
 
-    reg [2:0]        grp;
-    reg signed [2:0] digit;
+    function signed [2:0] booth_digit;
+        input [2:0] grp;
+        begin
+            case (grp)
+                3'b000: booth_digit = 3'sd0;
+                3'b001: booth_digit = 3'sd1;
+                3'b010: booth_digit = 3'sd1;
+                3'b011: booth_digit = 3'sd2;
+                3'b100: booth_digit = -3'sd2;
+                3'b101: booth_digit = -3'sd1;
+                3'b110: booth_digit = -3'sd1;
+                3'b111: booth_digit = 3'sd0;
+                default: booth_digit = 3'sd0;
+            endcase
+        end
+    endfunction
 
-    always @(*) begin
-        // ---- group 0 ----
-        grp = b_op[2:0];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp0 = (a_ext <<< 1);
-            3'sd1:  pp0 = a_ext;
-            3'sd0:  pp0 = 34'sd0;
-            -3'sd1: pp0 = -a_ext;
-            -3'sd2: pp0 = -(a_ext <<< 1);
-            default: pp0 = 34'sd0;
-        endcase
+    wire signed [2:0] digit0 = booth_digit(grp0);
+    wire signed [2:0] digit1 = booth_digit(grp1);
+    wire signed [2:0] digit2 = booth_digit(grp2);
+    wire signed [2:0] digit3 = booth_digit(grp3);
+    wire signed [2:0] digit4 = booth_digit(grp4);
+    wire signed [2:0] digit5 = booth_digit(grp5);
+    wire signed [2:0] digit6 = booth_digit(grp6);
+    wire signed [2:0] digit7 = booth_digit(grp7);
 
-        // ---- group 1 ----
-        grp = b_op[4:2];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp1 = (a_ext <<< 1) <<< 2;
-            3'sd1:  pp1 = a_ext <<< 2;
-            3'sd0:  pp1 = 34'sd0;
-            -3'sd1: pp1 = (-a_ext) <<< 2;
-            -3'sd2: pp1 = (-(a_ext <<< 1)) <<< 2;
-            default: pp1 = 34'sd0;
-        endcase
+    function signed [33:0] booth_pp;
+        input signed [2:0]  digit;
+        input signed [33:0] operand;
+        begin
+            case (digit)
+                3'sd2:   booth_pp = (operand <<< 1);
+                3'sd1:   booth_pp = operand;
+                3'sd0:   booth_pp = 34'sd0;
+                -3'sd1:  booth_pp = -operand;
+                -3'sd2:  booth_pp = -(operand <<< 1);
+                default: booth_pp = 34'sd0;
+            endcase
+        end
+    endfunction
 
-        // ---- group 2 ----
-        grp = b_op[6:4];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp2 = (a_ext <<< 1) <<< 4;
-            3'sd1:  pp2 = a_ext <<< 4;
-            3'sd0:  pp2 = 34'sd0;
-            -3'sd1: pp2 = (-a_ext) <<< 4;
-            -3'sd2: pp2 = (-(a_ext <<< 1)) <<< 4;
-            default: pp2 = 34'sd0;
-        endcase
-
-        // ---- group 3 ----
-        grp = b_op[8:6];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp3 = (a_ext <<< 1) <<< 6;
-            3'sd1:  pp3 = a_ext <<< 6;
-            3'sd0:  pp3 = 34'sd0;
-            -3'sd1: pp3 = (-a_ext) <<< 6;
-            -3'sd2: pp3 = (-(a_ext <<< 1)) <<< 6;
-            default: pp3 = 34'sd0;
-        endcase
-
-        // ---- group 4 ----
-        grp = b_op[10:8];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp4 = (a_ext <<< 1) <<< 8;
-            3'sd1:  pp4 = a_ext <<< 8;
-            3'sd0:  pp4 = 34'sd0;
-            -3'sd1: pp4 = (-a_ext) <<< 8;
-            -3'sd2: pp4 = (-(a_ext <<< 1)) <<< 8;
-            default: pp4 = 34'sd0;
-        endcase
-
-        // ---- group 5 ----
-        grp = b_op[12:10];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp5 = (a_ext <<< 1) <<< 10;
-            3'sd1:  pp5 = a_ext <<< 10;
-            3'sd0:  pp5 = 34'sd0;
-            -3'sd1: pp5 = (-a_ext) <<< 10;
-            -3'sd2: pp5 = (-(a_ext <<< 1)) <<< 10;
-            default: pp5 = 34'sd0;
-        endcase
-
-        // ---- group 6 ----
-        grp = b_op[14:12];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp6 = (a_ext <<< 1) <<< 12;
-            3'sd1:  pp6 = a_ext <<< 12;
-            3'sd0:  pp6 = 34'sd0;
-            -3'sd1: pp6 = (-a_ext) <<< 12;
-            -3'sd2: pp6 = (-(a_ext <<< 1)) <<< 12;
-            default: pp6 = 34'sd0;
-        endcase
-
-        // ---- group 7 (uses b_op[16] = b[15], the sign bit) ----
-        grp = b_op[16:14];
-        case (grp)
-            3'b000: digit = 3'sd0;
-            3'b001: digit = 3'sd1;
-            3'b010: digit = 3'sd1;
-            3'b011: digit = 3'sd2;
-            3'b100: digit = -3'sd2;
-            3'b101: digit = -3'sd1;
-            3'b110: digit = -3'sd1;
-            3'b111: digit = 3'sd0;
-            default: digit = 3'sd0;
-        endcase
-        case (digit)
-            3'sd2:  pp7 = (a_ext <<< 1) <<< 14;
-            3'sd1:  pp7 = a_ext <<< 14;
-            3'sd0:  pp7 = 34'sd0;
-            -3'sd1: pp7 = (-a_ext) <<< 14;
-            -3'sd2: pp7 = (-(a_ext <<< 1)) <<< 14;
-            default: pp7 = 34'sd0;
-        endcase
-    end
+    wire signed [33:0] pp0 = booth_pp(digit0, a_ext);
+    wire signed [33:0] pp1 = booth_pp(digit1, a_ext) <<< 2;
+    wire signed [33:0] pp2 = booth_pp(digit2, a_ext) <<< 4;
+    wire signed [33:0] pp3 = booth_pp(digit3, a_ext) <<< 6;
+    wire signed [33:0] pp4 = booth_pp(digit4, a_ext) <<< 8;
+    wire signed [33:0] pp5 = booth_pp(digit5, a_ext) <<< 10;
+    wire signed [33:0] pp6 = booth_pp(digit6, a_ext) <<< 12;
+    wire signed [33:0] pp7 = booth_pp(digit7, a_ext) <<< 14;
 
     //------------------------------------------------------------
     // Stage 1 registers: latch the 8 raw partial products
