@@ -1,22 +1,30 @@
---- 
 # Tiny Tapeout project information
 project:
   wokwi_id:    0        # If using wokwi, set this to your project's ID
-
   title:       "4x4 Q15 Systolic Matrix Multiplier (Pipelined Booth)"  # Project title
   author:      "H S Harsha"        # Your name
+  discord:     ""                      # Your discord username (optional)
   description: "Byte-serial 4x4 signed Q15/INT16 matrix multiplier using a 16-PE systolic array with pipelined radix-4 Booth multipliers"
   language:    "Verilog"
-  clock_hz:    238000000                # confirm against your actual verified target frequency
-
-  # A 16-PE systolic array with pipelined Booth multipliers is NOT small.
-  # Run synthesis first and check utilization before trusting 1x1 -- bump
-  # to 1x2 / 2x2 if density can't be met.
+  # 238 MHz was NOT a verified number in the previous file -- nothing run
+  # so far establishes real timing closure at that frequency. Defaulting
+  # to TT's nominal 50 MHz until you run post-synthesis STA and confirm
+  # a real max frequency; update this once you have that number.
+  clock_hz:    50000000
+  # NOTE: real sky130 synthesis (this session) puts this design at
+  # ~521,000 um^2 -- roughly 29 raw tiles, ~58 tiles at realistic
+  # placement density. That's larger than any standard TT tile option
+  # (largest is 8x2 = 16 tiles). Leaving as 1x1 per your instruction to
+  # set this aside for now -- this WILL need to change (either a smaller
+  # architecture or accept this repo targets FPGA, not TT tapeout,
+  # unless a much bigger custom tile size is available to you) before
+  # this is submittable.
   tiles: "1x1"
-
-  # Must start with tt_um_ and be unique (include your github username)
-  top_module: "tt_um_Harsha2006-cmd_systolic4x4_q15_booth_pipe"
-
+  # Must start with tt_um_ and be unique (include your github username).
+  # NOTE: your GitHub username "Harsha2006-cmd" contains a hyphen, which
+  # is NOT legal in a Verilog identifier -- the previous version of this
+  # field would not compile. Hyphen replaced with underscore below.
+  top_module: "tt_um_harsha2006_cmd_systolic4x4_q15_booth_pipe"
   # Must be in ./src -- and ALSO listed in test/Makefile's PROJECT_SOURCES
   source_files:
     - "tt_um_systolic4x4_q15_booth_pipe.v"
@@ -26,10 +34,11 @@ project:
     - "radix4_booth_mult16_pipe.v"
     - "matrix_loader4x4.v"
     - "skew_delay.v"
-
   # Pinout -- shown on the datasheet/website. Leave unused pins blank,
   # do not add/remove any pins.
   pinout:
+    # Inputs -- ui_in[7:0] is a single 8-bit data bus (byte-serial load
+    # of A/B), not 8 independent signals. Every bit labeled accordingly.
     ui[0]: "DATA_IN[0] -- data byte bit 0 (load phase)"
     ui[1]: "DATA_IN[1] -- data byte bit 1 (load phase)"
     ui[2]: "DATA_IN[2] -- data byte bit 2 (load phase)"
@@ -38,7 +47,8 @@ project:
     ui[5]: "DATA_IN[5] -- data byte bit 5 (load phase)"
     ui[6]: "DATA_IN[6] -- data byte bit 6 (load phase)"
     ui[7]: "DATA_IN[7] -- data byte bit 7 (load phase, MSB)"
-
+    # Outputs -- uo_out[7:0] is likewise a single 8-bit data bus
+    # (byte-serial read of C), all 8 bits used.
     uo[0]: "DATA_OUT[0] -- data byte bit 0 (read phase)"
     uo[1]: "DATA_OUT[1] -- data byte bit 1 (read phase)"
     uo[2]: "DATA_OUT[2] -- data byte bit 2 (read phase)"
@@ -47,7 +57,8 @@ project:
     uo[5]: "DATA_OUT[5] -- data byte bit 5 (read phase)"
     uo[6]: "DATA_OUT[6] -- data byte bit 6 (read phase)"
     uo[7]: "DATA_OUT[7] -- data byte bit 7 (read phase, MSB)"
-
+    # Bidirectional pins -- these ARE 8 independent single-bit signals
+    # (1 strobe input + 7 status outputs), correctly labeled individually.
     uio[0]: "strobe (1 cycle pulse): consume/advance one byte"
     uio[1]: "busy"
     uio[2]: "done_pulse (1 cycle)"
@@ -56,6 +67,5 @@ project:
     uio[5]: "compute_phase"
     uio[6]: "read_phase"
     uio[7]: "byte_valid (uo_out holds a valid C byte this cycle)"
-
 # Do not change!
 yaml_version: 6
