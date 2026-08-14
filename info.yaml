@@ -39,24 +39,24 @@ project:
   pinout:
     # Inputs -- ui_in[7:0] is a single 8-bit data bus (byte-serial load
     # of A/B), not 8 independent signals. Every bit labeled accordingly.
-    ui_in[0]: "DATA_IN[0] -- data byte bit 0 (load phase)"
-    ui_in[1]: "DATA_IN[1] -- data byte bit 1 (load phase)"
-    ui_in[2]: "DATA_IN[2] -- data byte bit 2 (load phase)"
-    ui_in[3]: "DATA_IN[3] -- data byte bit 3 (load phase)"
-    ui_in[4]: "DATA_IN[4] -- data byte bit 4 (load phase)"
-    ui_in[5]: "DATA_IN[5] -- data byte bit 5 (load phase)"
-    ui_in[6]: "DATA_IN[6] -- data byte bit 6 (load phase)"
-    ui_in[7]: "DATA_IN[7] -- data byte bit 7 (load phase, MSB)"
+    ui[0]: "DATA_IN[0] -- data byte bit 0 (load phase)"
+    ui[1]: "DATA_IN[1] -- data byte bit 1 (load phase)"
+    ui[2]: "DATA_IN[2] -- data byte bit 2 (load phase)"
+    ui[3]: "DATA_IN[3] -- data byte bit 3 (load phase)"
+    ui[4]: "DATA_IN[4] -- data byte bit 4 (load phase)"
+    ui[5]: "DATA_IN[5] -- data byte bit 5 (load phase)"
+    ui[6]: "DATA_IN[6] -- data byte bit 6 (load phase)"
+    ui[7]: "DATA_IN[7] -- data byte bit 7 (load phase, MSB)"
     # Outputs -- uo_out[7:0] is likewise a single 8-bit data bus
     # (byte-serial read of C), all 8 bits used.
-    uo_out[0]: "DATA_OUT[0] -- data byte bit 0 (read phase)"
-    uo_out[1]: "DATA_OUT[1] -- data byte bit 1 (read phase)"
-    uo_out[2]: "DATA_OUT[2] -- data byte bit 2 (read phase)"
-    uo_out[3]: "DATA_OUT[3] -- data byte bit 3 (read phase)"
-    uo_out[4]: "DATA_OUT[4] -- data byte bit 4 (read phase)"
-    uo_out[5]: "DATA_OUT[5] -- data byte bit 5 (read phase)"
-    uo_out[6]: "DATA_OUT[6] -- data byte bit 6 (read phase)"
-    uo_out[7]: "DATA_OUT[7] -- data byte bit 7 (read phase, MSB)"
+    uo[0]: "DATA_OUT[0] -- data byte bit 0 (read phase)"
+    uo[1]: "DATA_OUT[1] -- data byte bit 1 (read phase)"
+    uo[2]: "DATA_OUT[2] -- data byte bit 2 (read phase)"
+    uo[3]: "DATA_OUT[3] -- data byte bit 3 (read phase)"
+    uo[4]: "DATA_OUT[4] -- data byte bit 4 (read phase)"
+    uo[5]: "DATA_OUT[5] -- data byte bit 5 (read phase)"
+    uo[6]: "DATA_OUT[6] -- data byte bit 6 (read phase)"
+    uo[7]: "DATA_OUT[7] -- data byte bit 7 (read phase, MSB)"
     # Bidirectional pins -- these ARE 8 independent single-bit signals
     # (1 strobe input + 7 status outputs), correctly labeled individually.
     uio[0]: "strobe (1 cycle pulse): consume/advance one byte"
