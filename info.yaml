@@ -24,7 +24,7 @@ project:
   # NOTE: your GitHub username "Harsha2006-cmd" contains a hyphen, which
   # is NOT legal in a Verilog identifier -- the previous version of this
   # field would not compile. Hyphen replaced with underscore below.
-  top_module: "tt_um_harsha2006_cmd_systolic4x4_q15_booth_pipe"
+  top_module: "tt_um_systolic4x4_q15_booth_pipe"
   # Must be in ./src -- and ALSO listed in test/Makefile's PROJECT_SOURCES
   source_files:
     - "tt_um_systolic4x4_q15_booth_pipe.v"
