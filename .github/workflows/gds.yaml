@@ -1,9 +1,7 @@
 name: gds
-
 on:
   push:
   workflow_dispatch:
-
 jobs:
   gds:
     runs-on: ubuntu-latest
@@ -12,10 +10,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
       - name: Build GDS
         uses: TinyTapeout/tt-gds-action@ttsky25b
-
   viewer:
     needs: gds
     runs-on: ubuntu-latest
