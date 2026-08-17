@@ -7,29 +7,10 @@
 // Fully synchronous, 4-cycle valid_in -> valid_out latency, fully
 // pipelined (accepts one new operand pair every cycle).
 //
-// FIX (Yosys synthesis-stall fix): the original Stage-0 decode
-// block reused a single pair of scalar temp regs (`grp`, `digit`)
-// eight times in one always @(*) process -- once per Booth group.
-// Yosys's `proc` pass can misidentify that repeated
-// write-then-overwrite pattern on a small reg, driven by an
-// 8-entry constant-table case, as an addressable memory ($rdmux /
-// $auto$proc_rom), then burns large amounts of time trying to
-// flatten/share that inferred "memory" back into logic across all
-// 128 instances (8 groups x 16 PEs) in the full design.
-//
-// This version gives every one of the 8 Booth groups its own
-// uniquely-named wires (booth_digit0..7, generated via a
-// `function`, feeding continuous `assign`s for pp0..pp7) instead
-// of a shared/reused reg pair. There is no write-then-overwrite
-// pattern left on any single signal, so Yosys sees 8 independent
-// small combinational functions and synthesizes 8 independent
-// constant-mux trees, exactly as intended -- no memory inference,
-// no stall.
-//
-// Same Booth decode table, same partial-product formulas, same
-// 3-stage registered adder-tree reduction, same pipeline depth (4
-// stages), same port list as the original -- verified bit-exact
-// against the original via direct co-simulation.
+// No '*' operator, no DSP. Same Booth decode as the combinational
+// q15_booth_mult, but the 8 partial products are reduced through
+// three registered adder-tree stages instead of one big combinational
+// sum, so the critical path is broken into 4 shallow pipeline stages:
 //
 //   Stage 0 (comb) : Booth-decode b, generate 8 partial products
 //   Stage 1 (reg)  : latch the 8 partial products
@@ -41,8 +22,37 @@
 // result/valid_out for a given input pair appear exactly 4 clocks
 // after that pair was presented (with valid_in=1).
 //
-// Verilog-2001 synthesizable subset: no initial blocks, no latches,
-// sequential logic only in clocked always blocks.
+// ---------------------------------------------------------------
+// FIX (synthesis stall at Yosys `opt` / proc_rom, phase 5877):
+// The previous stage-0 implementation used ONE shared `grp`/`digit`
+// reg pair, written 8 times (once per Booth group) inside a single
+// `always @(*)` block. Yosys's `proc`/`opt_share`/`opt_muxtree`
+// passes see a scalar written repeatedly across many branches in
+// one process and start modeling it as a shared mux/ROM structure
+// instead of 8 independent combinational cones -- this is what hangs
+// `opt` when the block is instantiated 16x (once per PE) across the
+// 4x4 array.
+//
+// The fix moves Booth decode + partial-product generation into a
+// single reusable function (`booth_pp`) and calls it via 8 SEPARATE
+// continuous assignments (`assign pp0 = booth_pp(...); ...`). Each
+// pp_i is now its own independent combinational cone with no shared
+// mutable variable across groups, so there is nothing for Yosys to
+// (mis)identify as a shared mux tree. This is exactly the pattern
+// already proven in this project's fix for the non-pipelined
+// q15_booth_mult.
+//
+// Interface (clk, rst, valid_in, a, b, result, valid_out), the
+// 4-cycle latency, and Stages 1-4 (registers + adder tree) are
+// completely unchanged -- this file remains a drop-in replacement,
+// and nothing upstream (pe_q15_booth4_pipe, systolic_array4x4_1_
+// booth4_pipe, systolic_array4x4_booth4_pipe, or the TinyTapeout
+// top module) needs to change.
+// ---------------------------------------------------------------
+//
+// Verilog-2001 synthesizable subset: no initial blocks, no latches
+// (always @* / functions fully assign every case with a default
+// branch), sequential logic only in clocked always blocks.
 //================================================================
 
 module radix4_booth_mult16_pipe
@@ -65,63 +75,46 @@ module radix4_booth_mult16_pipe
     wire signed [33:0] a_ext = {{18{a[15]}}, a};
     wire        [16:0] b_op  = {b, 1'b0};
 
-    // Pure combinational function: 3-bit Booth window -> signed
-    // digit in {-2,-1,0,+1,+2}. No persistent state, no reuse
-    // across calls -- each call site below gets its own
-    // synthesized constant-mux tree tied to its own operand slice.
-    function signed [2:0] booth_digit;
-        input [2:0] w;
-        begin
-            case (w)
-                3'b000: booth_digit = 3'sd0;
-                3'b001: booth_digit = 3'sd1;
-                3'b010: booth_digit = 3'sd1;
-                3'b011: booth_digit = 3'sd2;
-                3'b100: booth_digit = -3'sd2;
-                3'b101: booth_digit = -3'sd1;
-                3'b110: booth_digit = -3'sd1;
-                3'b111: booth_digit = 3'sd0;
-                default: booth_digit = 3'sd0;
-            endcase
-        end
-    endfunction
-
-    // Pure combinational function: digit + pre-shifted operand ->
-    // signed partial product. Again no persistent state.
+    //------------------------------------------------------------
+    // Shared Booth-decode/partial-product function.
+    // Pure combinational, no persistent state across calls --
+    // each call site below drives its own independent wire, so
+    // there is no cross-group sharing for Yosys to trip over.
+    //------------------------------------------------------------
     function signed [33:0] booth_pp;
-        input signed [2:0]  d;
-        input signed [33:0] shifted_a;
+        input signed [33:0] a_val;
+        input        [2:0]  win;
+        input        [4:0]  shift;
+
+        reg signed [33:0] digit_val;
         begin
-            case (d)
-                3'sd2:   booth_pp = (shifted_a <<< 1);
-                3'sd1:   booth_pp = shifted_a;
-                3'sd0:   booth_pp = 34'sd0;
-                -3'sd1:  booth_pp = -shifted_a;
-                -3'sd2:  booth_pp = -(shifted_a <<< 1);
-                default: booth_pp = 34'sd0;
+            case (win)
+                3'b000: digit_val = 34'sd0;
+                3'b001: digit_val = a_val;
+                3'b010: digit_val = a_val;
+                3'b011: digit_val = (a_val <<< 1);
+                3'b100: digit_val = -(a_val <<< 1);
+                3'b101: digit_val = -a_val;
+                3'b110: digit_val = -a_val;
+                3'b111: digit_val = 34'sd0;
+                default: digit_val = 34'sd0;
             endcase
+            booth_pp = digit_val <<< shift;
         end
     endfunction
 
-    // Each group gets its own uniquely-named digit/pp wire pair --
-    // nothing is written-then-overwritten on a shared signal.
-    wire signed [2:0] digit0 = booth_digit(b_op[2:0]);
-    wire signed [2:0] digit1 = booth_digit(b_op[4:2]);
-    wire signed [2:0] digit2 = booth_digit(b_op[6:4]);
-    wire signed [2:0] digit3 = booth_digit(b_op[8:6]);
-    wire signed [2:0] digit4 = booth_digit(b_op[10:8]);
-    wire signed [2:0] digit5 = booth_digit(b_op[12:10]);
-    wire signed [2:0] digit6 = booth_digit(b_op[14:12]);
-    wire signed [2:0] digit7 = booth_digit(b_op[16:14]);
-
-    wire signed [33:0] pp0 = booth_pp(digit0, a_ext);
-    wire signed [33:0] pp1 = booth_pp(digit1, a_ext <<< 2);
-    wire signed [33:0] pp2 = booth_pp(digit2, a_ext <<< 4);
-    wire signed [33:0] pp3 = booth_pp(digit3, a_ext <<< 6);
-    wire signed [33:0] pp4 = booth_pp(digit4, a_ext <<< 8);
-    wire signed [33:0] pp5 = booth_pp(digit5, a_ext <<< 10);
-    wire signed [33:0] pp6 = booth_pp(digit6, a_ext <<< 12);
-    wire signed [33:0] pp7 = booth_pp(digit7, a_ext <<< 14);
+    //------------------------------------------------------------
+    // 8 independent continuous assignments -- one per Booth group.
+    // No always block, no shared reg, no proc_rom trap.
+    //------------------------------------------------------------
+    wire signed [33:0] pp0 = booth_pp(a_ext, b_op[2:0],   5'd0);
+    wire signed [33:0] pp1 = booth_pp(a_ext, b_op[4:2],   5'd2);
+    wire signed [33:0] pp2 = booth_pp(a_ext, b_op[6:4],   5'd4);
+    wire signed [33:0] pp3 = booth_pp(a_ext, b_op[8:6],   5'd6);
+    wire signed [33:0] pp4 = booth_pp(a_ext, b_op[10:8],  5'd8);
+    wire signed [33:0] pp5 = booth_pp(a_ext, b_op[12:10], 5'd10);
+    wire signed [33:0] pp6 = booth_pp(a_ext, b_op[14:12], 5'd12);
+    wire signed [33:0] pp7 = booth_pp(a_ext, b_op[16:14], 5'd14); // uses b_op[16] = b[15], the sign bit
 
     //------------------------------------------------------------
     // Stage 1 registers: latch the 8 raw partial products
