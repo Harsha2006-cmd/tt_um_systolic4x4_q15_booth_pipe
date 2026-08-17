@@ -15,6 +15,18 @@
 // with the *same* cycle as the first valid_in pulse of a new
 // stream (a rising-edge detector on valid_in, not a registered/
 // delayed pulse). See matrix_loader4x4.v for the correct pattern.
+//
+// ---------------------------------------------------------------
+// FIX: the skew_delay instances (A_SKEW / B_SKEW) previously left
+// their valid_out port connected-by-name-to-nothing (`.valid_out()`).
+// That is legal Verilog for "output intentionally unused", but some
+// lint-strict flows escalate an empty named connection to an error
+// ("Instance pin connected by name with empty reference"). Fixed by
+// connecting each instance's valid_out to a real (still functionally
+// unused) wire instead of leaving the port list entry empty. Purely
+// a lint fix -- no functional, timing, or interface change, and
+// nothing outside this file (including the top module) is touched.
+// ---------------------------------------------------------------
 //================================================================
 
 module systolic_array4x4_1_booth4_pipe(
@@ -71,6 +83,13 @@ module systolic_array4x4_1_booth4_pipe(
     wire signed [15:0] a_row_in [0:N-1];   // feeds PE[row][0]
     wire signed [15:0] b_col_in [0:N-1];   // feeds PE[0][col]
 
+    // skew_delay's valid_out is not used by this module (validity is
+    // tracked separately through the PE grid's own valid AND-chain),
+    // but we still give it a real wire per instance instead of an
+    // empty named connection.
+    wire a_skew_valid_out [0:N-1];
+    wire b_skew_valid_out [0:N-1];
+
     genvar row, col;
 
     generate
@@ -85,7 +104,7 @@ module systolic_array4x4_1_booth4_pipe(
                     .valid_in(valid_in),
                     .din(a_ext[row]),
                     .dout(a_row_in[row]),
-                    .valid_out()
+                    .valid_out(a_skew_valid_out[row])
                 );
         end
     endgenerate
@@ -102,7 +121,7 @@ module systolic_array4x4_1_booth4_pipe(
                     .valid_in(valid_in),
                     .din(b_ext[col]),
                     .dout(b_col_in[col]),
-                    .valid_out()
+                    .valid_out(b_skew_valid_out[col])
                 );
         end
     endgenerate
