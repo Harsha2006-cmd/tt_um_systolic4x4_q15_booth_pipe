@@ -23,7 +23,7 @@ module skew_delay
 generate
 
 if(DELAY == 0)
-begin
+begin : gen_delay_zero
 
     assign dout      = din;
     assign valid_out = valid_in;
@@ -35,7 +35,7 @@ end
 //----------------------------------------------------------
 
 else
-begin
+begin : gen_delay_nonzero
 
     reg signed [WIDTH-1:0] data_pipe [0:DELAY-1];
     reg                    valid_pipe[0:DELAY-1];
