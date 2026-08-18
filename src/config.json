@@ -1,3 +1,0 @@
-{
-  "//": "User-supplied LibreLane config overrides for this project. This file is intentionally left mostly empty -- do NOT change DIE_AREA/FP_DEF_TEMPLATE or other density-affecting keys here, since all TT projects in a shuttle are hardened together against a fixed tile size. Anything you add here is merged on top of the auto-generated src/user_config.json (which already sets DESIGN_NAME, VERILOG_FILES, DIE_AREA, VDD_PIN/GND_PIN, RT_MAX_LAYER, etc.) into src/config_merged.json, which is what actually gets passed to LibreLane."
-}
