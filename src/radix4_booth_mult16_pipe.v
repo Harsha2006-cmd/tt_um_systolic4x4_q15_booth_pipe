@@ -77,7 +77,6 @@
 // branch), sequential logic only in clocked always blocks.
 //================================================================
 
-(* keep_hierarchy = "yes" *)
 module radix4_booth_mult16_pipe
 (
     input clk,
