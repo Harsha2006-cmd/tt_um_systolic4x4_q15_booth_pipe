@@ -96,8 +96,11 @@ module systolic_array4x4_1_booth4_pipe(
         for(row = 0; row < N; row = row + 1)
         begin : A_ROW_SKEW
             if(row == 0)
+            begin : gen_row0_passthrough
                 assign a_row_in[row] = a_ext[row];
+            end
             else
+            begin : gen_rowN_skew
                 skew_delay #(.WIDTH(16), .DELAY(row*PE_LAT)) A_SKEW
                 (
                     .clk(clk), .rst(rst),
@@ -106,6 +109,7 @@ module systolic_array4x4_1_booth4_pipe(
                     .dout(a_row_in[row]),
                     .valid_out(a_skew_valid_out[row])
                 );
+            end
         end
     endgenerate
 
@@ -113,8 +117,11 @@ module systolic_array4x4_1_booth4_pipe(
         for(col = 0; col < N; col = col + 1)
         begin : B_COL_SKEW
             if(col == 0)
+            begin : gen_col0_passthrough
                 assign b_col_in[col] = b_ext[col];
+            end
             else
+            begin : gen_colN_skew
                 skew_delay #(.WIDTH(16), .DELAY(col*PE_LAT)) B_SKEW
                 (
                     .clk(clk), .rst(rst),
@@ -123,6 +130,7 @@ module systolic_array4x4_1_booth4_pipe(
                     .dout(b_col_in[col]),
                     .valid_out(b_skew_valid_out[col])
                 );
+            end
         end
     endgenerate
 
