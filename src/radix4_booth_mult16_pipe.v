@@ -23,7 +23,7 @@
 // after that pair was presented (with valid_in=1).
 //
 // ---------------------------------------------------------------
-// FIX (synthesis stall at Yosys `opt` / proc_rom, phase 5877):
+// FIX #1 (synthesis stall at Yosys `opt` / proc_rom, phase 5877):
 // The previous stage-0 implementation used ONE shared `grp`/`digit`
 // reg pair, written 8 times (once per Booth group) inside a single
 // `always @(*)` block. Yosys's `proc`/`opt_share`/`opt_muxtree`
@@ -42,6 +42,28 @@
 // already proven in this project's fix for the non-pipelined
 // q15_booth_mult.
 //
+// ---------------------------------------------------------------
+// FIX #2 (stall further downstream, at $flatten...MULT.$procdff
+// during a later opt/constprop pass):
+// Even after fix #1, this module is instantiated 16x (once per PE
+// in the 4x4 array). When Yosys flattens the design ahead of that
+// later optimization pass, it loses the fact that all 16 copies are
+// identical -- it re-runs full bit-level constant propagation /
+// opt independently on each of the 16 flattened copies instead of
+// solving it once. That per-instance blow-up is what stalls the
+// flow deep in the log at
+// `$flatten\CORE.\ARRAY.\PE_ROW[3].PE_COL[3].PE_INST.\MULT`.
+//
+// Adding `(* keep_hierarchy = "yes" *)` to this module tells Yosys
+// to preserve it as a hierarchy boundary during this pass, so it is
+// optimized once and reused (instantiated) 16 times rather than
+// flattened + independently re-optimized 16 times. This is a
+// synthesis-attribute-only change: it does not alter the module's
+// port list, functional behavior, or 4-cycle latency, and downstream
+// full-chip hardening flows (e.g. OpenLane's own `synth` step) that
+// need a fully flattened netlist will still flatten it normally at
+// that later stage regardless of this attribute.
+//
 // Interface (clk, rst, valid_in, a, b, result, valid_out), the
 // 4-cycle latency, and Stages 1-4 (registers + adder tree) are
 // completely unchanged -- this file remains a drop-in replacement,
@@ -55,6 +77,7 @@
 // branch), sequential logic only in clocked always blocks.
 //================================================================
 
+(* keep_hierarchy = "yes" *)
 module radix4_booth_mult16_pipe
 (
     input clk,
