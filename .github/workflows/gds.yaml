@@ -17,7 +17,8 @@ jobs:
         uses: TinyTapeout/tt-gds-action@ttsky26c
         with:
          pdk: sky130A
-         tools-ref: <exact-sha-from-step-1>
+         tools-repo: TinyTapeout/tt-support-tools   # default
+         tools-ref: main
 
   precheck:
     needs: gds
