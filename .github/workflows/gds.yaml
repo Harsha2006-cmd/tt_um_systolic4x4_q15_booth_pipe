@@ -16,7 +16,8 @@ jobs:
       - name: Build GDS
         uses: TinyTapeout/tt-gds-action@ttsky26c
         with:
-          pdk: sky130A
+         pdk: sky130A
+         tools-ref: <exact-sha-from-step-1>
 
   precheck:
     needs: gds
